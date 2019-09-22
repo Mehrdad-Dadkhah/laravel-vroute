@@ -16,7 +16,7 @@
         "phpunit/phpunit": "4.6.*",
         "guzzlehttp/guzzle": "^5.0|^6.0"
     },
-    "license": "GPLv3",
+    "license": "AGPL-3.0-only",
     "authors": [
         {
             "name": "Mehrdad Dadkhah",
