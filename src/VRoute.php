@@ -380,23 +380,99 @@ class VRoute
      * middlewares setter function
      *
      * @param string $controllerName
+     * @param string|null $method
      * @param array $middlewares
      * @param string|null $subDir
      * @param string|null $version
      * @return void
      */
-    public static function setMiddleware(string $controllerName, array $middlewares, ?string $subDir = null, ?string $version = null)
-    {
+    public static function setMiddleware(
+        string $controllerName,
+        ?string $method,
+        array $middlewares,
+        ?string $subDir = null,
+        ?string $version = null
+    ) {
         self::$middlewares[$controllerName]['middlewares'] = [];
-        if ($subDir !== null) {
-            if ($version !== null) {
-                self::$middlewares[$controllerName][$subDir][$version]['middlewares'] = $middlewares;
-            } else {
-                self::$middlewares[$controllerName][$subDir]['middlewares'] = $middlewares;
-            }
-        } else {
-            self::$middlewares[$controllerName]['middlewares'] = $middlewares;
+
+        if ($method !== null && $subDir !== null && $version !== null) {
+            self::$middlewares[$controllerName][$subDir][$version][$method]['middlewares'] = $middlewares;
+        } elseif ($method !== null && $subDir !== null) {
+            self::$middlewares[$controllerName][$subDir][$method]['middlewares'] = $middlewares;
+        } elseif ($method !== null && $version !== null) {
+            self::$middlewares[$controllerName][$version][$method]['middlewares'] = $middlewares;
+        } elseif ($subDir !== null && $version !== null) {
+            self::$middlewares[$controllerName][$subDir][$version]['middlewares'] = $middlewares;
+        } elseif ($method !== null) {
+            self::$middlewares[$controllerName][$method]['middlewares'] = $middlewares;
+        } elseif ($version !== null) {
+            self::$middlewares[$controllerName][$version]['middlewares'] = $middlewares;
+        } elseif ($subDir !== null) {
+            self::$middlewares[$controllerName][$subDir]['middlewares'] = $middlewares;
         }
+
+        self::$middlewares[$controllerName]['middlewares'] = $middlewares;
+    }
+
+    /**
+     * find route related middlewares
+     *
+     * @param Request $request
+     * @return string[]
+     */
+    private static function getRouteMiddlewares(Request $request): array
+    {
+        $middlewares    = [];
+        $controllerName = self::getControllerName($request);
+        $actionName     = self::getAction($request);
+
+        if (isset(self::$middlewares[$controllerName])) {
+            $middlewares = self::$middlewares[$controllerName]['middlewares'];
+
+            $dirs = self::getSubDirs($request);
+            foreach ($dirs as $dir) {
+                if (isset(self::$middlewares[$controllerName][$dir]['middlewares'])) {
+                    $middlewares = array_merge($middlewares, self::$middlewares[$controllerName][$dir]['middlewares']);
+
+                    if (isset(self::$middlewares[$controllerName][$dir][$actionName]['middlewares'])) {
+                        $middlewares = array_merge($middlewares, self::$middlewares[$controllerName][$dir][$actionName]['middlewares']);
+                    }
+
+                    if (isset(self::$middlewares[$controllerName][self::getVersion($request)][$actionName]['middlewares'])) {
+                        $middlewares = array_merge($middlewares, self::$middlewares[$controllerName][$dir][$actionName]['middlewares']);
+                    }
+
+                    if (isset(self::$middlewares[$controllerName][$dir][self::getVersion($request)]['middlewares'])) {
+                        $middlewares = array_merge($middlewares, self::$middlewares[$controllerName][$dir][self::getVersion($request)]['middlewares']);
+
+                        if (isset(self::$middlewares[$controllerName][$dir][self::getVersion($request)][$actionName]['middlewares'])) {
+                            $middlewares = array_merge($middlewares, self::$middlewares[$controllerName][$dir][self::getVersion($request)][$actionName]['middlewares']);
+                        }
+
+                    }
+                }
+
+                if (isset(self::$middlewares[$controllerName][$actionName]['middlewares'])) {
+                    $middlewares = array_merge($middlewares, self::$middlewares[$controllerName][$actionName]['middlewares']);
+                }
+
+                if (isset(self::$middlewares[$controllerName][self::getVersion($request)][$actionName]['middlewares'])) {
+                    $middlewares = array_merge($middlewares, self::$middlewares[$controllerName][$actionName]['middlewares']);
+                }
+
+                if (isset(self::$middlewares[$controllerName][self::getVersion($request)]['middlewares'])) {
+                    $middlewares = array_merge($middlewares, self::$middlewares[$controllerName][self::getVersion($request)]['middlewares']);
+
+                    if (isset(self::$middlewares[$controllerName][self::getVersion($request)][$actionName]['middlewares'])) {
+                        $middlewares = array_merge($middlewares, self::$middlewares[$controllerName][self::getVersion($request)][$actionName]['middlewares']);
+                    }
+
+                }
+
+            }
+        }
+
+        return $middlewares;
     }
 
     /**
@@ -407,29 +483,17 @@ class VRoute
      */
     public static function run(Request $request)
     {
-        $middlewares    = [];
-        $controllerName = self::getControllerName($request);
-        if (isset(self::$middlewares[$controllerName])) {
-            if (isset(self::$middlewares[$controllerName]['middlewares'])) {
-                $middlewares = self::$middlewares[$controllerName]['middlewares'];
-            }
-
-            $dirs = self::getSubDirs($request);
-            foreach ($dirs as $dir) {
-                if (isset(self::$middlewares[$controllerName][$dir]['middlewares'])) {
-                    $middlewares = array_merge($middlewares, self::$middlewares[$controllerName][$dir]['middlewares']);
-
-                    if (isset(self::$middlewares[$controllerName][$dir][self::getVersion($request)]['middlewares'])) {
-                        $middlewares = array_merge($middlewares, self::$middlewares[$controllerName][$dir][self::getVersion($request)]['middlewares']);
-                    }
-                }
-            }
+        if ($request->getPathInfo() == '/') {
+            return;
         }
 
-        Route::middleware([])->group(function () use ($request) {
+        $middlewares = self::getRouteMiddlewares($request);
+
+        //TODO: should cache result
+        Route::middleware($middlewares)->group(function () use ($request) {
             $http_response = $request->method();
             Route::$http_response('/{any}', function () use ($request) {
-                return \App::make([
+                return \App::call([
                     \App::make(self::getNamspace($request) . '\\' . self::getControllerName($request)),
                     self::getAction($request),
                 ]);
