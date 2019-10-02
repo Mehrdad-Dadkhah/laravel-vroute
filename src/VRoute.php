@@ -41,6 +41,12 @@ class VRoute
     /** @var int */
     private static $controllerKey = 0;
 
+    /** @var int */
+    private static $actionKey = 0;
+
+    /** @var int */
+    private static $actionName = null;
+
     /** @var string */
     private static $namespace = '';
 
@@ -139,7 +145,7 @@ class VRoute
             return self::$normalizedURI;
         }
 
-        return self::$normalizedURI = strtolower($request->getRequestUri());
+        return self::$normalizedURI = strtolower($request->getPathInfo());
     }
 
     /**
@@ -365,15 +371,89 @@ class VRoute
      */
     public static function getAction(Request $request): string
     {
+        if (self::$actionName !== null) {
+            return self::$actionName;
+        }
+
         $parts = self::parseURI($request);
         self::initControllerKey($request);
 
-        $action = 'index';
+        $action = self::getDefaultAction($request);
+
         if (isset($parts[self::$controllerKey + 1])) {
-            $action = $request->method() . self::camelize($parts[self::$controllerKey + 1]);
+            self::$actionKey = self::$controllerKey + 1;
+            $action          = $request->method() . self::camelize($parts[self::$actionKey]);
+
+            if (!method_exists(\App::make(self::getNamspace($request) . '\\' . self::getControllerName($request)), $action)) {
+                self::$actionKey = 0;
+                $action          = self::getDefaultAction($request);
+            }
+        }
+
+        return self::$actionName = $action;
+    }
+
+    /**
+     * get default action name base on http method
+     *
+     * @param Request $request
+     * @return string
+     */
+    private static function getDefaultAction(Request $request): string
+    {
+        $action = 'index';
+        switch ($request->method()) {
+            case 'POST':
+                $action = 'store';
+                break;
+            case 'PUT':
+                $action = 'update';
+                break;
+            case 'DELETE':
+                $action = 'destroy';
+                break;
         }
 
         return $action;
+    }
+
+    /**
+     * find routed params example: [/post/{id}]
+     *
+     * @param Request $request
+     * @return mixed[]
+     */
+    public static function getRoutedParams(Request $request): array
+    {
+        if (self::$actionKey === 0) {
+            self::getAction($request);
+            if (self::$actionKey === 0) {
+                return [];
+            }
+        }
+
+        $parts     = self::parseURI($request);
+        $urlParams = [];
+        for ($i = self::$actionKey + 1; $i < count($parts); $i++) {
+            $urlParams[] = $parts[$i];
+        }
+
+        $usedSendParam = 0;
+        $reflection    = new \ReflectionMethod(self::getNamspace($request) . '\\' . self::getControllerName($request), self::getAction($request));
+        $parameters    = [];
+        foreach ($reflection->getParameters() as $parameter) {
+            $class = $parameter->getClass();
+            if ($class) {
+                $parameters[$parameter->name] = \App::make($class->name);
+            } elseif (isset($urlParams[$usedSendParam])) {
+                $parameters[$parameter->name] = $urlParams[$usedSendParam];
+                $usedSendParam++;
+            } else {
+                $parameters[$parameter->name] = null;
+            }
+        }
+
+        return $parameters;
     }
 
     /**
@@ -393,25 +473,13 @@ class VRoute
         ?string $subDir = null,
         ?string $version = null
     ) {
-        self::$middlewares[$controllerName]['middlewares'] = [];
+        $key = '{controller}{subDir}{version}{method}';
+        $key = str_replace('{controller}', $controllerName, $key);
+        $key = str_replace('{method}', $method, $key);
+        $key = str_replace('{subDir}', $subDir, $key);
+        $key = str_replace('{version}', $version, $key);
 
-        if ($method !== null && $subDir !== null && $version !== null) {
-            self::$middlewares[$controllerName][$subDir][$version][$method]['middlewares'] = $middlewares;
-        } elseif ($method !== null && $subDir !== null) {
-            self::$middlewares[$controllerName][$subDir][$method]['middlewares'] = $middlewares;
-        } elseif ($method !== null && $version !== null) {
-            self::$middlewares[$controllerName][$version][$method]['middlewares'] = $middlewares;
-        } elseif ($subDir !== null && $version !== null) {
-            self::$middlewares[$controllerName][$subDir][$version]['middlewares'] = $middlewares;
-        } elseif ($method !== null) {
-            self::$middlewares[$controllerName][$method]['middlewares'] = $middlewares;
-        } elseif ($version !== null) {
-            self::$middlewares[$controllerName][$version]['middlewares'] = $middlewares;
-        } elseif ($subDir !== null) {
-            self::$middlewares[$controllerName][$subDir]['middlewares'] = $middlewares;
-        }
-
-        self::$middlewares[$controllerName]['middlewares'] = $middlewares;
+        self::$middlewares[$key] = $middlewares;
     }
 
     /**
@@ -425,50 +493,30 @@ class VRoute
         $middlewares    = [];
         $controllerName = self::getControllerName($request);
         $actionName     = self::getAction($request);
+        $version        = self::getVersion($request);
+        $subDirs        = self::getSubDirs($request);
 
-        if (isset(self::$middlewares[$controllerName])) {
-            $middlewares = self::$middlewares[$controllerName]['middlewares'];
+        $keys = [
+            '{controller}{subDir}{version}{method}',
+            '{controller}{subDir}{version}',
+            '{controller}{subDir}',
+            '{controller}{version}{method}',
+            '{controller}{method}',
+            '{controller}{subDir}{method}',
+            '{controller}{subDir}{version}',
+        ];
 
-            $dirs = self::getSubDirs($request);
-            foreach ($dirs as $dir) {
-                if (isset(self::$middlewares[$controllerName][$dir]['middlewares'])) {
-                    $middlewares = array_merge($middlewares, self::$middlewares[$controllerName][$dir]['middlewares']);
+        foreach ($keys as $key) {
+            $key = str_replace('{controller}', $controllerName, $key);
+            $key = str_replace('{method}', $actionName, $key);
+            $key = str_replace('{version}', $version, $key);
 
-                    if (isset(self::$middlewares[$controllerName][$dir][$actionName]['middlewares'])) {
-                        $middlewares = array_merge($middlewares, self::$middlewares[$controllerName][$dir][$actionName]['middlewares']);
-                    }
+            foreach ($subDirs as $dir) {
+                $key = str_replace('{subDir}', $dir, $key);
 
-                    if (isset(self::$middlewares[$controllerName][self::getVersion($request)][$actionName]['middlewares'])) {
-                        $middlewares = array_merge($middlewares, self::$middlewares[$controllerName][$dir][$actionName]['middlewares']);
-                    }
-
-                    if (isset(self::$middlewares[$controllerName][$dir][self::getVersion($request)]['middlewares'])) {
-                        $middlewares = array_merge($middlewares, self::$middlewares[$controllerName][$dir][self::getVersion($request)]['middlewares']);
-
-                        if (isset(self::$middlewares[$controllerName][$dir][self::getVersion($request)][$actionName]['middlewares'])) {
-                            $middlewares = array_merge($middlewares, self::$middlewares[$controllerName][$dir][self::getVersion($request)][$actionName]['middlewares']);
-                        }
-
-                    }
+                if (isset(self::$middlewares[$key])) {
+                    $middlewares = array_merge($middlewares, self::$middlewares[$key]);
                 }
-
-                if (isset(self::$middlewares[$controllerName][$actionName]['middlewares'])) {
-                    $middlewares = array_merge($middlewares, self::$middlewares[$controllerName][$actionName]['middlewares']);
-                }
-
-                if (isset(self::$middlewares[$controllerName][self::getVersion($request)][$actionName]['middlewares'])) {
-                    $middlewares = array_merge($middlewares, self::$middlewares[$controllerName][$actionName]['middlewares']);
-                }
-
-                if (isset(self::$middlewares[$controllerName][self::getVersion($request)]['middlewares'])) {
-                    $middlewares = array_merge($middlewares, self::$middlewares[$controllerName][self::getVersion($request)]['middlewares']);
-
-                    if (isset(self::$middlewares[$controllerName][self::getVersion($request)][$actionName]['middlewares'])) {
-                        $middlewares = array_merge($middlewares, self::$middlewares[$controllerName][self::getVersion($request)][$actionName]['middlewares']);
-                    }
-
-                }
-
             }
         }
 
@@ -488,15 +536,13 @@ class VRoute
         }
 
         $middlewares = self::getRouteMiddlewares($request);
-
-        //TODO: should cache result
         Route::middleware($middlewares)->group(function () use ($request) {
             $http_response = $request->method();
             Route::$http_response('/{any}', function () use ($request) {
-                return \App::call([
-                    \App::make(self::getNamspace($request) . '\\' . self::getControllerName($request)),
-                    self::getAction($request),
-                ]);
+                return \App::call(
+                    self::getNamspace($request) . '\\' . self::getControllerName($request) . '@' . self::getAction($request),
+                    self::getRoutedParams($request)
+                );
             })->where('any', '.*');
         });
 
