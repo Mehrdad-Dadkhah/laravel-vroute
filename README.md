@@ -27,6 +27,133 @@ So to fix this problem/need I develop this package. VRoute for ```/api/v2/post``
 
 Maybe you ask this process is heavy and may make performance problem, yes but I add good caching system to it and we process only one time.
 
+## Benefit case and samples
+
+1. **Simplification and less code**
+**Berfore** use VRoute you may have sth like this:
+    ```PHP
+    Route::namespace ('Admin')->prefix('admin')->group(function () {
+    
+        Route::namespace ('V1')->prefix('v1')->group(function () {
+    
+            Route::post('users/login', 'UserAPIController@login');
+            Route::post('users/refresh-token', 'UserAPIController@refreshToken');
+            Route::post('users/forget-password', 'UserAPIController@forgetPassword');
+            Route::post('users/register', 'UserAPIController@register');
+    
+            Route::resource('faqs', 'FaqAPIController');
+            Route::get('settings/check-version', 'SettingAPIController@checkVersion');
+    
+            Route::group(['middleware' => 'auth:api'], function () {
+                Route::post('users/logout', 'UserAPIController@logout');
+                Route::get('users/show', 'UserAPIController@show');
+                Route::put('users/notification-toggle', 'UserAPIController@toggleStatusNotification');
+    
+                Route::get('users/channels', 'UserTaggingAPIController@channels');
+    
+                /** ---------------------- ACL middleware  ----------------------------------- */
+                Route::middleware(['acl'])->group(function () {
+                    Route::get('scores/totals', 'ScoreAPIController@totals');
+                    Route::resource('posts', 'PostAPIController');
+                });
+            });
+        });
+    });
+    
+    Route::namespace ('Client')->prefix('client')->group(function () {
+    
+        Route::namespace ('V1')->prefix('v1')->group(function () {
+    
+            Route::post('users/login', 'UserAPIController@login');
+            Route::post('users/refresh-token', 'UserAPIController@refreshToken');
+            Route::post('users/forget-password', 'UserAPIController@forgetPassword');
+            Route::post('users/register', 'UserAPIController@register');
+    
+            Route::resource('faqs', 'FaqAPIController');
+            Route::get('settings/check-version', 'SettingAPIController@checkVersion');
+    
+            Route::group(['middleware' => 'auth:api'], function () {
+                Route::post('users/logout', 'UserAPIController@logout');
+                Route::get('users/show', 'UserAPIController@show');
+                Route::put('users/notification-toggle', 'UserAPIController@toggleStatusNotification');
+    
+                Route::get('users/channels', 'UserTaggingAPIController@channels');
+    
+                /** ---------------------- ACL middleware  ----------------------------------- */
+                Route::middleware(['acl'])->group(function () {
+                    Route::get('scores/totals', 'ScoreAPIController@totals');
+                    Route::resource('posts', 'PostAPIController');
+                });
+            });
+        });
+    
+        Route::namespace ('V2')->prefix('v2')->group(function () {
+    
+            Route::post('users/login', 'UserAPIController@login');
+            Route::post('users/refresh-token', 'UserAPIController@refreshToken');
+            Route::post('users/forget-password', 'UserAPIController@forgetPassword');
+            Route::post('users/register', 'UserAPIController@register');
+    
+            Route::resource('faqs', 'FaqAPIController');
+            Route::get('settings/check-version', 'SettingAPIController@checkVersion');
+    
+            Route::group(['middleware' => 'auth:api'], function () {
+    
+                Route::get('users/channels', 'UserTaggingAPIController@channels');
+    
+                /** ---------------------- ACL middleware  ----------------------------------- */
+                Route::middleware(['acl'])->group(function () {
+                    Route::resource('posts', 'PostAPIController');
+                });
+            });
+        });
+    
+    });
+    ```
+    
+    And **after** use VRoute it will be:
+    ```PHP
+    VRoute::setAvailableSubDirs([
+        'admin',
+        'client',
+    ]);
+    
+    VRoute::setMiddleware('UserAPIController', 'POSTLogout', ['auth:api']);
+    VRoute::setMiddleware('UserAPIController', 'GETShow', ['auth:api']);
+    VRoute::setMiddleware('UserTaggingAPIController', 'PUTNotificationToggle', ['auth:api']);
+    VRoute::setMiddleware('UserAPIController', 'GETChannels', ['auth:api']);
+    VRoute::setMiddleware('ScoreAPIController', 'GETTotals', ['auth:api', 'acl']);
+    VRoute::setMiddleware('PostAPIController', null, ['auth:api', 'acl']); //work for all versions
+    
+    VRoute::run(request());
+    ```
+
+2. **Procedural unity**
+3. **Team conventions**
+4. **More redable code in controller**
+    **Before** use Vroute:
+    ```PHP
+    class UserAPIController extends AppBaseController
+    {
+        //some codes .....
+        public function notification(): JsonResponse
+        {
+            //some codes
+        }
+    }
+    ```
+    
+    **After** use VRoute:
+    ```PHP
+    class UserAPIController extends AppBaseController
+    {
+        //some codes .....
+        public function PUTNotification(): JsonResponse
+        {
+            //some codes
+        }
+    }
+    ```
 ## System requirements
 
 Tested with >=7.1, following binaries need to be installed
