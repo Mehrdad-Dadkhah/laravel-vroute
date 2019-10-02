@@ -31,11 +31,11 @@ Maybe you ask this process is heavy and may make performance problem, yes but I 
 
 1. **Simplification and less code**
     
-    **Berfore** use VRoute you may have sth like this:
+    **Before** using VRoute you may have something like this:
     ```PHP
-    Route::namespace ('Admin')->prefix('admin')->group(function () {
+    Route::namespace('Admin')->prefix('admin')->group(function () {
     
-        Route::namespace ('V1')->prefix('v1')->group(function () {
+        Route::namespace('V1')->prefix('v1')->group(function () {
     
             Route::post('users/login', 'UserAPIController@login');
             Route::post('users/refresh-token', 'UserAPIController@refreshToken');
@@ -52,7 +52,7 @@ Maybe you ask this process is heavy and may make performance problem, yes but I 
     
                 Route::get('users/channels', 'UserTaggingAPIController@channels');
     
-                /** ---------------------- ACL middleware  ----------------------------------- */
+                /** ---------------------- ACL middleware  ---------------------- */
                 Route::middleware(['acl'])->group(function () {
                     Route::get('scores/totals', 'ScoreAPIController@totals');
                     Route::resource('posts', 'PostAPIController');
@@ -61,9 +61,9 @@ Maybe you ask this process is heavy and may make performance problem, yes but I 
         });
     });
     
-    Route::namespace ('Client')->prefix('client')->group(function () {
+    Route::namespace('Client')->prefix('client')->group(function () {
     
-        Route::namespace ('V1')->prefix('v1')->group(function () {
+        Route::namespace('V1')->prefix('v1')->group(function () {
     
             Route::post('users/login', 'UserAPIController@login');
             Route::post('users/refresh-token', 'UserAPIController@refreshToken');
@@ -80,7 +80,7 @@ Maybe you ask this process is heavy and may make performance problem, yes but I 
     
                 Route::get('users/channels', 'UserTaggingAPIController@channels');
     
-                /** ---------------------- ACL middleware  ----------------------------------- */
+                /** ---------------------- ACL middleware  ---------------------- */
                 Route::middleware(['acl'])->group(function () {
                     Route::get('scores/totals', 'ScoreAPIController@totals');
                     Route::resource('posts', 'PostAPIController');
@@ -88,7 +88,7 @@ Maybe you ask this process is heavy and may make performance problem, yes but I 
             });
         });
     
-        Route::namespace ('V2')->prefix('v2')->group(function () {
+        Route::namespace('V2')->prefix('v2')->group(function () {
     
             Route::post('users/login', 'UserAPIController@login');
             Route::post('users/refresh-token', 'UserAPIController@refreshToken');
@@ -102,7 +102,7 @@ Maybe you ask this process is heavy and may make performance problem, yes but I 
     
                 Route::get('users/channels', 'UserTaggingAPIController@channels');
     
-                /** ---------------------- ACL middleware  ----------------------------------- */
+                /** ---------------------- ACL middleware  ---------------------- */
                 Route::middleware(['acl'])->group(function () {
                     Route::resource('posts', 'PostAPIController');
                 });
@@ -112,7 +112,7 @@ Maybe you ask this process is heavy and may make performance problem, yes but I 
     });
     ```
     
-    And **after** use VRoute it will be:
+    And **after** use VRoute it would be:
     ```PHP
     VRoute::setAvailableSubDirs([
         'admin',
@@ -137,7 +137,7 @@ Maybe you ask this process is heavy and may make performance problem, yes but I 
     ```PHP
     class UserAPIController extends AppBaseController
     {
-        //some codes .....
+        // some codes .....
         public function notification(): JsonResponse
         {
             //some codes
@@ -149,7 +149,7 @@ Maybe you ask this process is heavy and may make performance problem, yes but I 
     ```PHP
     class UserAPIController extends AppBaseController
     {
-        //some codes .....
+        // some codes .....
         public function PUTNotification(): JsonResponse
         {
             //some codes
@@ -169,10 +169,10 @@ composer require mehrdad-dadkhah/laravel-vroute
 
 ## Usage
 
-In route folder, put this code in your route file (for example api.php)
+Put this code in your route file (for example routes/api.php)
 
 ```PHP
-use App\VRoute;
+use MehrdadDadkhah\VRoute;
 
 VRoute::run(request());
 ```
@@ -188,9 +188,9 @@ VRoute::setAvailableSubDirs([
 ]);
 ```
 
-## How to set middleware?
+## How to set a middleware?
 
-You can set middleware in 8 layer or way!
+You can set middleware in 8 layers or ways!
 
 1. Set for controller in all version and directory
 
