@@ -30,7 +30,8 @@ Maybe you ask this process is heavy and may make performance problem, yes but I 
 ## Benefit case and samples
 
 1. **Simplification and less code**
-**Berfore** use VRoute you may have sth like this:
+    
+    **Berfore** use VRoute you may have sth like this:
     ```PHP
     Route::namespace ('Admin')->prefix('admin')->group(function () {
     
@@ -131,6 +132,7 @@ Maybe you ask this process is heavy and may make performance problem, yes but I 
 2. **Procedural unity**
 3. **Team conventions**
 4. **More redable code in controller**
+    
     **Before** use Vroute:
     ```PHP
     class UserAPIController extends AppBaseController
