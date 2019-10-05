@@ -125,7 +125,7 @@ class VRoute
         }
 
         if (empty($versions)) {
-            throw new NotFoundHttpException(self::getNamspace($request) . '\\' . self::getControllerName($request) . ' with action NotFound ' . self::getAction($request));
+            throw new NotFoundHttpException(self::getNamspace($request) . '\\' . self::getControllerName($request) . ' with action ' . self::getAction($request) . ' Not Found!');
         }
 
         sort($versions);
@@ -345,7 +345,7 @@ class VRoute
         $parts = self::parseURI($request);
 
         if (!isset($parts[self::$controllerKey])) {
-            throw new NotFoundHttpException($request->getUri() . ' not found!');
+            throw new NotFoundHttpException($request->getUri() . ' Not Found');
         }
 
         $name = str_replace(
@@ -379,14 +379,18 @@ class VRoute
         self::initControllerKey($request);
 
         $action = self::getDefaultAction($request);
-
         if (isset($parts[self::$controllerKey + 1])) {
             self::$actionKey = self::$controllerKey + 1;
             $action          = $request->method() . self::camelize($parts[self::$actionKey]);
 
-            if (!method_exists(\App::make(self::getNamspace($request) . '\\' . self::getControllerName($request)), $action)) {
-                self::$actionKey = 0;
-                $action          = self::getDefaultAction($request);
+            $controllerObj = \App::make(self::getNamspace($request) . '\\' . self::getControllerName($request));
+            if (!method_exists($controllerObj, $action)) {
+                $dAction = self::getDefaultAction($request, true);
+
+                if (method_exists($controllerObj, $dAction) && self::actionHasParams(self::getNamspace($request) . '\\' . self::getControllerName($request), $dAction)) {
+                    self::$actionKey = self::$controllerKey;
+                    $action          = $dAction;
+                }
             }
         }
 
@@ -397,11 +401,12 @@ class VRoute
      * get default action name base on http method
      *
      * @param Request $request
+     * @param bool $hasParam
      * @return string
      */
-    private static function getDefaultAction(Request $request): string
+    private static function getDefaultAction(Request $request, bool $hasParam = false): string
     {
-        $action = 'index';
+        $action = ($hasParam ? 'show' : 'index');
         switch ($request->method()) {
             case 'POST':
                 $action = 'store';
@@ -425,11 +430,8 @@ class VRoute
      */
     public static function getRoutedParams(Request $request): array
     {
-        if (self::$actionKey === 0) {
+        if (self::$actionName === null) {
             self::getAction($request);
-            if (self::$actionKey === 0) {
-                return [];
-            }
         }
 
         $parts     = self::parseURI($request);
@@ -454,6 +456,19 @@ class VRoute
         }
 
         return $parameters;
+    }
+
+    /**
+     * check method has params or not function
+     *
+     * @param string $objectNamspace
+     * @param string $action
+     * @return boolean
+     */
+    private static function actionHasParams(string $objectNamspace, string $action): bool
+    {
+        $reflection = new \ReflectionMethod($objectNamspace, $action);
+        return !empty($reflection->getParameters());
     }
 
     /**
