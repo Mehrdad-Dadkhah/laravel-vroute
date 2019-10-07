@@ -550,6 +550,14 @@ class VRoute
             return;
         }
 
+        $routeCollection = Route::getRoutes();
+
+        foreach ($routeCollection as $value) {
+            if ($value->matches($request)) {
+                return;
+            }
+        }
+
         $middlewares = self::getRouteMiddlewares($request);
         Route::middleware($middlewares)->group(function () use ($request) {
             $http_response = $request->method();
